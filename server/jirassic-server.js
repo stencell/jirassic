@@ -1520,7 +1520,7 @@ function getDashboardHTML() {
     // Filter ticket table rows by search term, status, priority, and project
     function filterTicketRows() {
       const hasFilters = ticketSearchTerm || ticketStatusFilters.size || ticketPriorityFilters.size || ticketSPFilters.size || activeProjectFilter;
-      const hasStatusOrPriority = ticketStatusFilters.size || ticketPriorityFilters.size || ticketSPFilters.size;
+      const hasStatusOrPriority = ticketStatusFilters.size || ticketPriorityFilters.size || ticketSPFilters.size || activeProjectFilter;
       // Handle both tab mode (.tab-content) and flat view mode (no tabs)
       const tabContents = document.querySelectorAll('.tab-content');
       const containers = tabContents.length ? tabContents : [document.getElementById('app')];
