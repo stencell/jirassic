@@ -23,6 +23,7 @@ const STATE_FILE = path.join(STATE_DIR, "state.json");
 const CACHE_FILE = path.join(STATE_DIR, "cache.json");
 const PYTHON = "python3";
 const JIRA_SITE = process.env.JIRA_SITE || "redhat.atlassian.net";
+const PROJECTS = (process.env.TRIAGE_PROJECT || "").split(",").map(p => p.trim()).filter(Boolean);
 const IS_MACOS = process.platform === "darwin";
 
 // Cache the current Jira user's account ID (resolved on first use)
@@ -106,7 +107,6 @@ function runScript(name, args = []) {
 }
 
 async function fetchAllData(overrideDays) {
-  const project = process.env.TRIAGE_PROJECT || "";
   const days = overrideDays || process.env.TRIAGE_DAYS || "7";
 
   const [actionItems, tickets] = await Promise.all([
@@ -114,7 +114,7 @@ async function fetchAllData(overrideDays) {
     runScript("my-jira-tickets", [
       "--json",
       "--include-closed",
-      ...(project ? ["--project", project] : []),
+      ...(PROJECTS.length ? ["--project", PROJECTS.join(",")] : []),
     ]),
   ]);
 
@@ -253,6 +253,7 @@ function buildData(actionItems, tickets) {
     futureSprints,
     backlogTickets,
     sprintsEnabled: process.env.TRIAGE_SPRINTS !== "false",
+    projects: PROJECTS,
     updated: new Date().toISOString(),
   };
 }
@@ -504,8 +505,8 @@ const server = http.createServer(async (req, res) => {
   // Jira API proxy — create an epic
   if (req.method === "POST" && req.url === "/api/jira/create-epic") {
     try {
-      const { summary, assignToMe, priority } = JSON.parse(await readBody(req));
-      const project = process.env.TRIAGE_PROJECT || "GPTEINFRA";
+      const { summary, assignToMe, priority, project: reqProject } = JSON.parse(await readBody(req));
+      const project = reqProject || PROJECTS[0] || "GPTEINFRA";
       const email = process.env.JIRA_EMAIL;
       const token = process.env.JIRA_API_TOKEN;
       const auth = Buffer.from(`${email}:${token}`).toString("base64");
@@ -757,12 +758,14 @@ const server = http.createServer(async (req, res) => {
   // Jira API proxy — get epics and tickets for linking
   if (req.method === "GET" && req.url === "/api/jira/epics") {
     try {
-      const project = process.env.TRIAGE_PROJECT || "GPTEINFRA";
       const email = process.env.JIRA_EMAIL;
       const token = process.env.JIRA_API_TOKEN;
       const auth = Buffer.from(`${email}:${token}`).toString("base64");
+      const projectClause = PROJECTS.length > 1
+        ? `project IN (${PROJECTS.join(", ")})`
+        : `project = ${PROJECTS[0] || "GPTEINFRA"}`;
       const jql = encodeURIComponent(
-        `project = ${project} AND assignee = currentUser() AND issuetype = Epic AND status NOT IN (Done, Closed) ORDER BY updated DESC`
+        `${projectClause} AND assignee = currentUser() AND issuetype = Epic AND status NOT IN (Done, Closed) ORDER BY updated DESC`
       );
       const url = `https://${JIRA_SITE}/rest/api/3/search/jql?jql=${jql}&fields=summary,status&maxResults=50`;
       const resp = await fetch(url, {
@@ -784,8 +787,8 @@ const server = http.createServer(async (req, res) => {
   // Jira API proxy — create a ticket
   if (req.method === "POST" && req.url === "/api/jira/create") {
     try {
-      const { summary, epicKey, description, assignToMe, storyPoints, priority, sprintId } = JSON.parse(await readBody(req));
-      const project = process.env.TRIAGE_PROJECT || "GPTEINFRA";
+      const { summary, epicKey, description, assignToMe, storyPoints, priority, sprintId, project: reqProject } = JSON.parse(await readBody(req));
+      const project = reqProject || PROJECTS[0] || "GPTEINFRA";
       const email = process.env.JIRA_EMAIL;
       const token = process.env.JIRA_API_TOKEN;
       const auth = Buffer.from(`${email}:${token}`).toString("base64");
