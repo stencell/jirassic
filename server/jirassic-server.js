@@ -1375,6 +1375,10 @@ function getDashboardHTML() {
     .or-divider { text-align: center; color: var(--text-muted); margin: 0.5rem 0; font-size: 0.85rem; }
     .toast { position: fixed; bottom: 2rem; right: 2rem; background: #238636; color: #fff; padding: 0.5rem 1rem; border-radius: 6px; font-size: 0.9rem; opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 100; }
     .toast.show { opacity: 1; }
+    .project-chips { display:flex; gap:0.4rem; flex-wrap:wrap; margin-bottom:0.5rem; }
+    .project-chip { padding:3px 12px; border-radius:12px; border:1px solid var(--border); background:var(--bg3); color:var(--text-muted); cursor:pointer; font-size:0.82rem; font-weight:500; transition:background 0.1s; }
+    .project-chip:hover { border-color:var(--link); color:var(--link); }
+    .project-chip.active { background:var(--link); color:#fff; border-color:var(--link); }
   </style>
 </head>
 <body>
@@ -1420,10 +1424,18 @@ function getDashboardHTML() {
     let ticketStatusFilters = new Set();
     let ticketPriorityFilters = new Set();
     let ticketSPFilters = new Set();
+    let activeProjectFilter = '';
     const expandedState = {}; // track which collapsibles are expanded
 
     // Check if a ticket row matches the current filters
     function rowMatchesFilters(row) {
+      if (activeProjectFilter) {
+        const keyEl = row.querySelector('a[href*="/browse/"]');
+        if (keyEl) {
+          const proj = keyEl.textContent.trim().split('-')[0];
+          if (proj !== activeProjectFilter) return false;
+        }
+      }
       const term = ticketSearchTerm;
       if (term && !row.textContent.toLowerCase().includes(term)) return false;
       if (ticketStatusFilters.size) {
@@ -1446,9 +1458,9 @@ function getDashboardHTML() {
       return true;
     }
 
-    // Filter ticket table rows by search term, status, and priority
+    // Filter ticket table rows by search term, status, priority, and project
     function filterTicketRows() {
-      const hasFilters = ticketSearchTerm || ticketStatusFilters.size || ticketPriorityFilters.size || ticketSPFilters.size;
+      const hasFilters = ticketSearchTerm || ticketStatusFilters.size || ticketPriorityFilters.size || ticketSPFilters.size || activeProjectFilter;
       const hasStatusOrPriority = ticketStatusFilters.size || ticketPriorityFilters.size || ticketSPFilters.size;
       // Handle both tab mode (.tab-content) and flat view mode (no tabs)
       const tabContents = document.querySelectorAll('.tab-content');
@@ -3024,6 +3036,14 @@ function getDashboardHTML() {
 
       // Tickets
       html += '<h2>My Jira Tickets</h2>';
+      if (DATA.projects && DATA.projects.length > 1) {
+        html += '<div class="project-chips" id="project-chips">';
+        html += '<span class="project-chip' + (!activeProjectFilter ? ' active' : '') + '" data-project="">All</span>';
+        for (const proj of DATA.projects) {
+          html += '<span class="project-chip' + (activeProjectFilter === proj ? ' active' : '') + '" data-project="' + esc(proj) + '">' + esc(proj) + '</span>';
+        }
+        html += '</div>';
+      }
       html += '<div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.5rem;align-items:center;">';
       html += '<input type="text" id="ticket-search" placeholder="Search tickets..." style="flex:1;min-width:200px;max-width:400px;padding:0.4rem 0.6rem;background:var(--bg1);color:var(--text);border:1px solid var(--border);border-radius:4px;font-size:0.9rem;" />';
       // Collect unique statuses and priorities from all tickets
@@ -3146,6 +3166,19 @@ function getDashboardHTML() {
 
       // Attach event listeners via delegation
       app.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => switchTab(t.dataset.tab)));
+
+      // Project filter chips
+      app.querySelectorAll('.project-chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+          activeProjectFilter = chip.dataset.project;
+          app.querySelectorAll('.project-chip').forEach(c => {
+            c.classList.toggle('active', c.dataset.project === activeProjectFilter);
+          });
+          jiraEpics = null;
+          filterTicketRows();
+        });
+      });
+
       document.getElementById('triaged-toggle')?.addEventListener('click', () => toggleCollapse('triaged-section', 'triaged-arrow'));
       document.getElementById('jira-toggle')?.addEventListener('click', () => toggleCollapse('jira-items', 'jira-arrow'));
       document.getElementById('skip-toggle')?.addEventListener('click', () => toggleCollapse('skip-items', 'skip-arrow'));
