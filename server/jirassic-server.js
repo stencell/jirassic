@@ -82,6 +82,49 @@ function itemHash(text) {
     .slice(0, 16);
 }
 
+function markdownToADF(md) {
+  if (!md || !md.trim()) return { type: "doc", version: 1, content: [{ type: "paragraph", content: [] }] };
+  const lines = md.split("\n");
+  const content = [];
+  let listItems = [];
+
+  function flushList() {
+    if (!listItems.length) return;
+    content.push({
+      type: "bulletList",
+      content: listItems.map(text => ({
+        type: "listItem",
+        content: [{ type: "paragraph", content: [{ type: "text", text }] }],
+      })),
+    });
+    listItems = [];
+  }
+
+  for (const line of lines) {
+    const h3 = line.match(/^###\s+(.+)/);
+    const h2 = line.match(/^##\s+(.+)/);
+    const li = line.match(/^-\s+(?:\[[ x]\]\s+)?(.+)/);
+
+    if (h3) {
+      flushList();
+      content.push({ type: "heading", attrs: { level: 3 }, content: [{ type: "text", text: h3[1] }] });
+    } else if (h2) {
+      flushList();
+      content.push({ type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: h2[1] }] });
+    } else if (li) {
+      listItems.push(li[1]);
+    } else if (!line.trim()) {
+      flushList();
+    } else {
+      flushList();
+      content.push({ type: "paragraph", content: [{ type: "text", text: line }] });
+    }
+  }
+  flushList();
+  if (!content.length) content.push({ type: "paragraph", content: [] });
+  return { type: "doc", version: 1, content };
+}
+
 // --- Data fetching ---
 
 function runScript(name, args = []) {
@@ -649,6 +692,26 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // Templates endpoint
+  if (req.method === "GET" && req.url === "/api/templates") {
+    try {
+      const templatesDir = path.join(PROJECT_ROOT, "templates");
+      let templates = [];
+      if (fs.existsSync(templatesDir)) {
+        const files = fs.readdirSync(templatesDir).filter(f => f.endsWith(".md")).sort();
+        templates = files.map(f => {
+          const name = f.replace(/\.md$/, "").replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+          const body = fs.readFileSync(path.join(templatesDir, f), "utf8");
+          return { name, body };
+        });
+      }
+      json(templates);
+    } catch (e) {
+      json({ error: e.message }, 500);
+    }
+    return;
+  }
+
   // Config page
   if (req.method === "GET" && req.url === "/config") {
     res.writeHead(200, { "Content-Type": "text/html" });
@@ -806,11 +869,7 @@ const server = http.createServer(async (req, res) => {
       if (storyPoints) fields.customfield_10028 = parseFloat(storyPoints);
       if (priority) fields.priority = { name: priority };
       if (description) {
-        fields.description = {
-          type: "doc",
-          version: 1,
-          content: [{ type: "paragraph", content: [{ type: "text", text: description }] }],
-        };
+        fields.description = markdownToADF(description);
       }
 
       const resp = await fetch(`https://${JIRA_SITE}/rest/api/3/issue`, {
