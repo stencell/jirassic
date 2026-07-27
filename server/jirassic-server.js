@@ -2446,7 +2446,7 @@ function getDashboardHTML() {
       prLabel.appendChild(document.createTextNode('Priority'));
       const prSelect = document.createElement('select');
       prSelect.style.cssText = 'background:var(--bg);border:1px solid var(--border);color:var(--text);padding:2px 6px;border-radius:4px;font-size:0.85rem;';
-      for (const v of ['Major', 'Blocker', 'Critical', 'Normal', 'Minor']) {
+      for (const v of ['Normal', 'Major', 'Blocker', 'Critical', 'Minor']) {
         const opt = document.createElement('option');
         opt.value = v;
         opt.textContent = v;
@@ -2559,7 +2559,7 @@ function getDashboardHTML() {
         const sp = modal.spSelect?.value || null;
         const assign = assignCheck.checked;
 
-        const priority = modal.prSelect?.value || 'Major';
+        const priority = modal.prSelect?.value || 'Normal';
         const typeName = isEpic ? 'Epic' : 'Task';
         const tabSprint = getActiveTabSprint();
         let selectedEpicLabel = null;
@@ -2675,7 +2675,7 @@ function getDashboardHTML() {
               buttonText: 'Update Ticket',
               hideDetails: true,
               spSelect: { current: t.story_points || null },
-              priSelect: { current: t.priority || 'Major' },
+              priSelect: { current: t.priority || 'Normal' },
             });
             if (!result) return;
             // Update story points and priority if changed
