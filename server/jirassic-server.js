@@ -2367,6 +2367,45 @@ function getDashboardHTML() {
       summaryInput.placeholder = 'Summary';
       modal.appendChild(summaryInput);
 
+      // Template dropdown + description textarea (tasks only)
+      const descArea = document.createElement('textarea');
+      descArea.className = 'modal-input';
+      descArea.placeholder = 'Description (optional)';
+      descArea.style.cssText = 'resize:vertical;min-height:80px;font-family:monospace;font-size:0.82rem;margin-bottom:0.3rem;';
+      descArea.rows = 4;
+
+      if (!isEpic) {
+        const templateRow = document.createElement('div');
+        templateRow.style.cssText = 'display:flex;align-items:center;gap:0.5rem;margin-bottom:0.3rem;font-size:0.85rem;';
+        const templateLabel = document.createElement('span');
+        templateLabel.style.color = 'var(--text-muted)';
+        templateLabel.textContent = 'Template:';
+        const templateSelect = document.createElement('select');
+        templateSelect.style.cssText = 'background:var(--bg);border:1px solid var(--border);color:var(--text);padding:2px 6px;border-radius:4px;font-size:0.85rem;flex:1;';
+        const blankOpt = document.createElement('option');
+        blankOpt.value = '';
+        blankOpt.textContent = '— Blank (free form) —';
+        templateSelect.appendChild(blankOpt);
+        templateRow.appendChild(templateLabel);
+        templateRow.appendChild(templateSelect);
+        modal.appendChild(templateRow);
+
+        fetch('/api/templates').then(r => r.json()).then(templates => {
+          for (const t of templates) {
+            const opt = document.createElement('option');
+            opt.value = t.body;
+            opt.textContent = t.name;
+            templateSelect.appendChild(opt);
+          }
+        }).catch(() => {});
+
+        templateSelect.addEventListener('change', () => {
+          descArea.value = templateSelect.value;
+        });
+      }
+
+      modal.appendChild(descArea);
+
       // Project selector (only shown if multiple projects configured)
       let selectedProject = activeProjectFilter || (DATA?.projects?.[0] || '');
       if (DATA?.projects && DATA.projects.length > 1) {
@@ -2529,7 +2568,9 @@ function getDashboardHTML() {
           selectedEpicLabel = selectedEpicKey + (selEpic ? ': ' + selEpic.summary : (epicSummary ? ': ' + epicSummary : ''));
         }
         if (!await confirmCreate('Create ' + typeName + '?', summary, selectedEpicLabel, { assign, storyPoints: isEpic ? 'n/a' : (sp || ''), priority, sprint: (!isEpic && tabSprint.name) ? tabSprint.name : '' })) return;
+        const description = descArea.value.trim();
         const body = { summary, assignToMe: assign, priority, project: selectedProject };
+        if (description) body.description = description;
         if (selectedEpicKey && !isEpic) body.epicKey = selectedEpicKey;
         if (sp) body.storyPoints = sp;
         if (tabSprint.id && !isEpic) body.sprintId = tabSprint.id;
