@@ -1023,8 +1023,8 @@ function getConfigHTML() {
   </div>
   <div class="field">
     <label>TRIAGE_PROJECT</label>
-    <div class="desc">Default Jira project filter (leave empty for all projects)</div>
-    <input type="text" id="cfg-project" placeholder="e.g. GPTEINFRA" autocomplete="off">
+    <div class="desc">Comma-separated Jira project keys to include. First project is the default for new ticket creation.</div>
+    <input type="text" id="cfg-project" placeholder="e.g. GPTEINFRA,RHDPCD" autocomplete="off">
   </div>
   <div class="field">
     <label>TRIAGE_DAYS</label>
