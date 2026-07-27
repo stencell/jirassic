@@ -2308,6 +2308,29 @@ function getDashboardHTML() {
       summaryInput.placeholder = 'Summary';
       modal.appendChild(summaryInput);
 
+      // Project selector (only shown if multiple projects configured)
+      let selectedProject = activeProjectFilter || (DATA?.projects?.[0] || '');
+      if (DATA?.projects && DATA.projects.length > 1) {
+        const projDiv = document.createElement('div');
+        projDiv.style.cssText = 'margin:0.3rem 0;display:flex;align-items:center;gap:0.5rem;font-size:0.85rem;';
+        const projLabel = document.createElement('span');
+        projLabel.style.color = 'var(--text-muted)';
+        projLabel.textContent = 'Project:';
+        const projSelect = document.createElement('select');
+        projSelect.style.cssText = 'background:var(--bg);border:1px solid var(--border);color:var(--text);padding:2px 6px;border-radius:4px;font-size:0.85rem;';
+        for (const proj of DATA.projects) {
+          const opt = document.createElement('option');
+          opt.value = proj;
+          opt.textContent = proj;
+          if (proj === selectedProject) opt.selected = true;
+          projSelect.appendChild(opt);
+        }
+        projSelect.addEventListener('change', () => { selectedProject = projSelect.value; });
+        projDiv.appendChild(projLabel);
+        projDiv.appendChild(projSelect);
+        modal.appendChild(projDiv);
+      }
+
       const optionsDiv = document.createElement('div');
       optionsDiv.style.cssText = 'display:flex;gap:1.5rem;align-items:center;margin:0.5rem 0;';
 
@@ -2362,7 +2385,7 @@ function getDashboardHTML() {
       // Epic selector for standalone task creation
       let epicSelect = { value: '' };
       if (!epicKey && !isEpic) {
-        const epics = (DATA?.tickets || []).filter(t => t.type === 'Epic');
+        const epics = (DATA?.tickets || []).filter(t => t.type === 'Epic' && (!activeProjectFilter || t.project === activeProjectFilter));
         if (epics.length) {
           const epicDiv = document.createElement('div');
           epicDiv.style.cssText = 'margin:0.5rem 0;';
@@ -2447,7 +2470,7 @@ function getDashboardHTML() {
           selectedEpicLabel = selectedEpicKey + (selEpic ? ': ' + selEpic.summary : (epicSummary ? ': ' + epicSummary : ''));
         }
         if (!await confirmCreate('Create ' + typeName + '?', summary, selectedEpicLabel, { assign, storyPoints: isEpic ? 'n/a' : (sp || ''), priority, sprint: (!isEpic && tabSprint.name) ? tabSprint.name : '' })) return;
-        const body = { summary, assignToMe: assign, priority };
+        const body = { summary, assignToMe: assign, priority, project: selectedProject };
         if (selectedEpicKey && !isEpic) body.epicKey = selectedEpicKey;
         if (sp) body.storyPoints = sp;
         if (tabSprint.id && !isEpic) body.sprintId = tabSprint.id;
@@ -2621,8 +2644,9 @@ function getDashboardHTML() {
       overlay.className = 'modal-overlay';
       overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
 
+      const filteredEpicsForModal = activeProjectFilter ? epics.filter(e => e.key.startsWith(activeProjectFilter + '-')) : epics;
       let epicListHtml = '';
-      for (const e of epics) {
+      for (const e of filteredEpicsForModal) {
         epicListHtml += '<div class="epic-item" data-epic-key="' + esc(e.key) + '"><span class="epic-key">' + esc(e.key) + '</span> <span class="epic-summary">' + esc(e.summary) + '</span></div>';
       }
 
@@ -2710,6 +2734,29 @@ function getDashboardHTML() {
 
       modal.appendChild(optionsDiv);
 
+      // Project selector for triage modal
+      let selectedProjectJira = activeProjectFilter || (DATA?.projects?.[0] || '');
+      if (DATA?.projects && DATA.projects.length > 1) {
+        const jiraProjDiv = document.createElement('div');
+        jiraProjDiv.style.cssText = 'display:flex;align-items:center;gap:0.5rem;font-size:0.85rem;margin-bottom:0.5rem;';
+        const jiraProjLabel = document.createElement('span');
+        jiraProjLabel.style.color = 'var(--text-muted)';
+        jiraProjLabel.textContent = 'Project:';
+        const jiraProjSelect = document.createElement('select');
+        jiraProjSelect.style.cssText = 'background:var(--bg);border:1px solid var(--border);color:var(--text);padding:2px 6px;border-radius:4px;font-size:0.85rem;';
+        for (const proj of (DATA?.projects || [])) {
+          const opt = document.createElement('option');
+          opt.value = proj;
+          opt.textContent = proj;
+          if (proj === selectedProjectJira) opt.selected = true;
+          jiraProjSelect.appendChild(opt);
+        }
+        jiraProjSelect.addEventListener('change', () => { selectedProjectJira = jiraProjSelect.value; });
+        jiraProjDiv.appendChild(jiraProjLabel);
+        jiraProjDiv.appendChild(jiraProjSelect);
+        modal.appendChild(jiraProjDiv);
+      }
+
       // Section 1: Add to an epic
       if (epics.length) {
         const divider1 = document.createElement('div');
@@ -2737,7 +2784,7 @@ function getDashboardHTML() {
         const epicListEl = document.createElement('div');
         epicListEl.className = 'epic-list';
 
-        for (const ep of epics) {
+        for (const ep of filteredEpicsForModal) {
           const item = document.createElement('div');
           item.className = 'epic-item';
           const keySpan = document.createElement('span');
@@ -2755,7 +2802,7 @@ function getDashboardHTML() {
             const sprintId2 = document.getElementById('create-sprint')?.value || null;
             const sprintName2 = sprintId2 ? document.getElementById('create-sprint')?.options[document.getElementById('create-sprint')?.selectedIndex]?.text : '';
             if (!await confirmCreate('Create task under ' + ep.key + '?', summary, ep.key + ': ' + ep.summary, { assign: assignToMe, storyPoints: storyPoints || '', priority: '', sprint: sprintName2 })) return;
-            const createBody = { summary, epicKey: ep.key, description: text, assignToMe, storyPoints };
+            const createBody = { summary, epicKey: ep.key, description: text, assignToMe, storyPoints, project: selectedProjectJira };
             if (sprintId2) createBody.sprintId = sprintId2;
             const resp = await fetch('/api/jira/create', {
               method: 'POST',
@@ -2796,7 +2843,7 @@ function getDashboardHTML() {
         const sprintId3 = document.getElementById('create-sprint')?.value || null;
         const sprintName3 = sprintId3 ? document.getElementById('create-sprint')?.options[document.getElementById('create-sprint')?.selectedIndex]?.text : '';
         if (!await confirmCreate('Create standalone ticket?', summary, null, { assign: assignToMe, storyPoints: storyPoints || '', sprint: sprintName3 })) return;
-        const createBody2 = { summary, description: text, assignToMe, storyPoints };
+        const createBody2 = { summary, description: text, assignToMe, storyPoints, project: selectedProjectJira };
         if (sprintId3) createBody2.sprintId = sprintId3;
         const resp = await fetch('/api/jira/create', {
           method: 'POST',
