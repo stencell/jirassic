@@ -53,6 +53,17 @@ for i, a in enumerate(args):
     if a == "--project" and i + 1 < len(args):
         PROJECT = args[i + 1]
 
+def build_project_clause(project_str):
+    if not project_str:
+        return ""
+    projects = [p.strip() for p in project_str.split(",") if p.strip()]
+    if not projects:
+        return ""
+    if len(projects) == 1:
+        return f"project = {projects[0]} AND "
+    keys = ", ".join(projects)
+    return f"project IN ({keys}) AND "
+
 
 def jira_request(path, params=None):
     """Make an authenticated request to the Jira REST API."""
@@ -86,7 +97,7 @@ def jira_request(path, params=None):
 def get_open_tickets():
     """Returns open tickets, plus recently closed tickets if --include-closed."""
     fields = "summary,status,priority,issuetype,parent,customfield_10020,customfield_10028"
-    project_prefix = f"project = {PROJECT} AND " if PROJECT else ""
+    project_prefix = build_project_clause(PROJECT)
 
     # Always fetch open tickets
     open_jql = f"{project_prefix}assignee = currentUser() AND status NOT IN (Done, Closed) ORDER BY priority ASC, created DESC"
@@ -164,6 +175,7 @@ def parse_tickets(data):
             "future_sprint_end": future_sprint.get("endDate") if future_sprint else None,
             "story_points": fields.get("customfield_10028"),
             "url": f"https://{JIRA_SITE}/browse/{issue['key']}",
+            "project": issue["key"].split("-")[0],
         })
 
     return tickets
