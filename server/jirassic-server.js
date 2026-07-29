@@ -548,7 +548,7 @@ const server = http.createServer(async (req, res) => {
   // Jira API proxy — create an epic
   if (req.method === "POST" && req.url === "/api/jira/create-epic") {
     try {
-      const { summary, assignToMe, priority, project: reqProject } = JSON.parse(await readBody(req));
+      const { summary, assignToMe, priority, project: reqProject, labels } = JSON.parse(await readBody(req));
       const project = reqProject || PROJECTS[0] || "GPTEINFRA";
       const email = process.env.JIRA_EMAIL;
       const token = process.env.JIRA_API_TOKEN;
@@ -564,6 +564,7 @@ const server = http.createServer(async (req, res) => {
         if (accountId) fields.assignee = { id: accountId };
       }
       if (priority) fields.priority = { name: priority };
+      if (labels && labels.length) fields.labels = labels;
 
       const resp = await fetch(`https://${JIRA_SITE}/rest/api/3/issue`, {
         method: "POST",
@@ -850,7 +851,7 @@ const server = http.createServer(async (req, res) => {
   // Jira API proxy — create a ticket
   if (req.method === "POST" && req.url === "/api/jira/create") {
     try {
-      const { summary, epicKey, description, assignToMe, storyPoints, priority, sprintId, project: reqProject } = JSON.parse(await readBody(req));
+      const { summary, epicKey, description, assignToMe, storyPoints, priority, sprintId, project: reqProject, labels } = JSON.parse(await readBody(req));
       const project = reqProject || PROJECTS[0] || "GPTEINFRA";
       const email = process.env.JIRA_EMAIL;
       const token = process.env.JIRA_API_TOKEN;
@@ -868,6 +869,7 @@ const server = http.createServer(async (req, res) => {
       if (epicKey) fields.parent = { key: epicKey };
       if (storyPoints) fields.customfield_10028 = parseFloat(storyPoints);
       if (priority) fields.priority = { name: priority };
+      if (labels && labels.length) fields.labels = labels;
       if (description) {
         fields.description = markdownToADF(description);
       }
@@ -2478,7 +2480,20 @@ function getDashboardHTML() {
         optionsDiv.appendChild(spLabel);
         modal.spSelect = spSelect;
       }
+      // Labels input
+      const labelsRow = document.createElement('div');
+      labelsRow.style.cssText = 'display:flex;align-items:center;gap:0.4rem;margin:0.3rem 0;font-size:0.85rem;';
+      const labelsSpan = document.createElement('span');
+      labelsSpan.style.color = 'var(--text-muted)';
+      labelsSpan.textContent = 'Labels:';
+      const labelsInput = document.createElement('input');
+      labelsInput.type = 'text';
+      labelsInput.placeholder = 'comma-separated';
+      labelsInput.style.cssText = 'background:var(--bg);border:1px solid var(--border);color:var(--text);padding:2px 6px;border-radius:4px;font-size:0.85rem;flex:1;';
+      labelsRow.appendChild(labelsSpan);
+      labelsRow.appendChild(labelsInput);
       modal.appendChild(optionsDiv);
+      modal.appendChild(labelsRow);
 
       // Epic selector for standalone task creation
       let epicSelect = { value: '' };
@@ -2569,8 +2584,10 @@ function getDashboardHTML() {
         }
         if (!await confirmCreate('Create ' + typeName + '?', summary, selectedEpicLabel, { assign, storyPoints: isEpic ? 'n/a' : (sp || ''), priority, sprint: (!isEpic && tabSprint.name) ? tabSprint.name : '' })) return;
         const description = descArea.value.trim();
+        const rawLabels = labelsInput.value.split(',').map(l => l.trim()).filter(Boolean);
         const body = { summary, assignToMe: assign, priority, project: selectedProject };
         if (description) body.description = description;
+        if (rawLabels.length) body.labels = rawLabels;
         if (selectedEpicKey && !isEpic) body.epicKey = selectedEpicKey;
         if (sp) body.storyPoints = sp;
         if (tabSprint.id && !isEpic) body.sprintId = tabSprint.id;
